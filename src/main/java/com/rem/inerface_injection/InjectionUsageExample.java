@@ -1,7 +1,6 @@
-package com.example.examplemod.inerface_injection;
+package com.rem.inerface_injection;
 
 import lombok.val;
-import net.minecraft.world.item.BoatItem;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
 

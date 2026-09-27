@@ -1,6 +1,6 @@
-package com.example.examplemod.mixin;
+package com.rem.mixin;
 
-import com.example.examplemod.inerface_injection.InjectItemStack;
+import com.rem.inerface_injection.InjectItemStack;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 

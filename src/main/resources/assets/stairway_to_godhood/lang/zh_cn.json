@@ -1,0 +1,7 @@
+{
+  "itemGroup.stairway_to_godhood.main": "登神长阶",
+
+  "item.stairway_to_godhood.ascension_orb": "登神长阶",
+  "item.stairway_to_godhood.ascension_orb.tooltip": "一枚尚在沉睡的原型宝珠，引力波自内向外扩散",
+  "item.stairway_to_godhood.ascension_orb.tooltip.hint": "长按右键：双手将宝珠举至身前蓄力"
+}

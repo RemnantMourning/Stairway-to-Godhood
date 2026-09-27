@@ -1,6 +1,5 @@
-
 {
-  "package": "com.example.examplemod.mixin",
+  "package": "com.rem.mixin",
   "required": true,
   "target": "@env(DEFAULT)",
   "minVersion": "0.8",
@@ -11,7 +10,8 @@
   "server": [],
   "client": [
     "AccessTitleScreen",
-    "ExampleMixin"
+    "ExampleMixin",
+    "MixinAscensionOrbArmPose"
   ],
   "injectors": {
     "defaultRequire": 1

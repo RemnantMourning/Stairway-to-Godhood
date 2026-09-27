@@ -1,5 +1,7 @@
-package com.example.examplemod;
+package com.rem;
 
+import com.rem.stairwaytogodhood.registry.ModCreativeTabs;
+import com.rem.stairwaytogodhood.registry.ModItems;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.BoatItem;
 import net.minecraft.world.item.Items;
@@ -15,8 +17,11 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-@Mod("example_mod")
+@Mod(ExampleMod.MOD_ID)
 public class ExampleMod {
+
+    /** 注册命名空间。必须与 gradle.properties 里的 mod_id 保持一致。 */
+    public static final String MOD_ID = "stairway_to_godhood";
 
     public static final Logger LOGGER = LogManager.getLogger();
 
@@ -39,6 +44,12 @@ public class ExampleMod {
         // like automatically subscribing an entire class to an event bus
         // or using static methods to listen to events,
         // feel free to check out the Forge wiki!
+
+        // ---- Stairway to Godhood 内容注册 ----
+        // 物品与创造物品栏必须挂到 FML 提供的 mod event bus 上才会生效。
+        IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
+        ModItems.register(modBus);         // 「登神长阶」宝珠
+        ModCreativeTabs.register(modBus);  // 创造模式物品栏
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {

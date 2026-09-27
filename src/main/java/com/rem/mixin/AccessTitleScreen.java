@@ -1,4 +1,4 @@
-package com.example.examplemod.mixin;
+package com.rem.mixin;
 
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.renderer.PanoramaRenderer;

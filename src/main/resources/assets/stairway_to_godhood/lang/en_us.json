@@ -1,0 +1,7 @@
+{
+  "itemGroup.stairway_to_godhood.main": "Ascension Stairway",
+
+  "item.stairway_to_godhood.ascension_orb": "Ascension Stairway",
+  "item.stairway_to_godhood.ascension_orb.tooltip": "A slumbering prototype orb. Gravitational waves ripple outward from within",
+  "item.stairway_to_godhood.ascension_orb.tooltip.hint": "Hold right-click to raise it in both hands and charge"
+}

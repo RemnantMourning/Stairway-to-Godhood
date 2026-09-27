@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "stairway_to_godhood:item/ascension_orb"
+  }
+}

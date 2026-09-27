@@ -1,6 +1,6 @@
-package com.example.examplemod.mixin;
+package com.rem.mixin;
 
-import com.example.examplemod.ExampleMod;
+import com.rem.ExampleMod;
 import net.minecraft.client.gui.screens.TitleScreen;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

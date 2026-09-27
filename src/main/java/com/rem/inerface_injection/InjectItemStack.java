@@ -1,4 +1,4 @@
-package com.example.examplemod.inerface_injection;
+package com.rem.inerface_injection;
 
 import net.minecraft.world.item.ItemStack;
 

@@ -37,6 +37,11 @@ R_HALO = 14.6 * SS           # 外圈光晕外缘
 
 N_CRACKS = 5                 # 外圈裂缝条数（位置固定）
 
+# 裂缝尺寸（surge 模式会放大 —— 见 apply_mode）
+CRACK_R_IN = (0.7, 1.7)      # 向球内延伸的长度范围（格）
+CRACK_R_OUT = (2.6, 3.8)     # 向球外延伸的长度范围（格）
+CRACK_W0 = (0.62, 0.86)      # 根部宽度范围
+
 SEED = 20260928
 
 ORB_RGB = (5, 3, 9)          # 球体黑（微微偏蓝）
@@ -159,11 +164,11 @@ def make_cracks(rng):
         nod = [0.0] + [rng.uniform(-0.14, 0.14) for _ in range(n_nodes - 2)] + [0.0]
         cracks.append({
             "ang": base + rng.uniform(-0.20, 0.20),      # 固定角度
-            "r_in": R_ORB - rng.uniform(0.7, 1.7) * SS,  # 向球内延伸到的半径
-            "r_out": R_ORB + rng.uniform(2.6, 3.8) * SS, # 向球外延伸到的半径
+            "r_in": R_ORB - rng.uniform(*CRACK_R_IN) * SS,   # 向球内延伸到的半径
+            "r_out": R_ORB + rng.uniform(*CRACK_R_OUT) * SS, # 向球外延伸到的半径
             "bend": rng.uniform(-0.40, 0.40),            # 整体角度漂移（所以是斜的）
             "nod": nod,                                  # 各节点的固定折角
-            "w0": rng.uniform(0.62, 0.86) * SS,          # 根部宽度
+            "w0": rng.uniform(*CRACK_W0) * SS,               # 根部宽度
             "phase": rng.uniform(0.0, 2.0 * math.pi),    # 闪动相位
             "freq": rng.uniform(0.9, 1.9),               # 闪动频率（周期数 / 整段动画）
         })
@@ -346,9 +351,35 @@ def save_sheet(frames, path, scale=5, bg=(65, 65, 75), cols=8):
     sheet.save(path)
 
 
+def apply_mode(surge):
+    """按模式覆盖参数。
+
+    surge = 第三阶段「登神长阶」：裂隙更大更多、闪电更粗更亮
+    （引力波"极快"由 .png.mcmeta 的 frametime 控制 —— 这里管不了，见 ascension_orb_surge.png.mcmeta）。
+    """
+    global N_CRACKS, CRACK_R_IN, CRACK_R_OUT, CRACK_W0
+    global BOLT_CORE_W, BOLT_CORE_LIT, BOLT_GLOW_A, BOLT_GLOW_W
+    global CRACK_LIT, WAVE_LIT
+    if not surge:
+        return
+    N_CRACKS = 9                 # 裂隙更多
+    CRACK_R_IN = (1.0, 2.4)      # 向球内裂得更深
+    CRACK_R_OUT = (4.0, 6.2)     # 向球外炸得更远 —— "裂隙变大"
+    CRACK_W0 = (1.05, 1.45)      # 更粗的裂缝
+    BOLT_CORE_W = 0.80 * SS      # 闪电更粗
+    BOLT_CORE_LIT = 2.30         # 更强
+    BOLT_GLOW_A = 0.34           # 辉光更亮 —— "闪电效果更突出"
+    BOLT_GLOW_W = 2.0
+    CRACK_LIT = (255, 130, 215)  # 裂缝更亮（快撑爆的感觉）
+    WAVE_LIT = 0.90              # 引力波对比更强
+
+
 def main():
-    out_png = sys.argv[1] if len(sys.argv) > 1 else "ascension_orb.png"
-    preview_dir = sys.argv[2] if len(sys.argv) > 2 else None
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    surge = "--surge" in sys.argv
+    apply_mode(surge)
+    out_png = args[0] if len(args) > 0 else "ascension_orb.png"
+    preview_dir = args[1] if len(args) > 1 else None
 
     frames = render_frames()
 

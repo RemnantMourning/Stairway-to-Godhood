@@ -2,5 +2,13 @@
   "parent": "minecraft:item/generated",
   "textures": {
     "layer0": "stairway_to_godhood:item/ascension_orb"
-  }
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "stairway_to_godhood:surge": 0.5
+      },
+      "model": "stairway_to_godhood:item/ascension_orb_surge"
+    }
+  ]
 }

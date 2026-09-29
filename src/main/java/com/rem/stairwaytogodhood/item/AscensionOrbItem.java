@@ -1,5 +1,6 @@
 package com.rem.stairwaytogodhood.item;
 
+import com.rem.stairwaytogodhood.ChargeAnchor;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -95,6 +96,58 @@ public class AscensionOrbItem extends Item {
      */
     private static final int USE_DURATION = 72000;
 
+    /**
+     * <b>第一阶段时长</b>：这段时间里玩家<b>可以自由行走和跳跃</b>。
+     * <p>
+     * 70 tick ≈ 3.5 秒，取在需求"3 到 4 秒"的中间。
+     * 这一段是刻意的"留白"——先让玩家把宝珠举起来、还能边走边找位置，
+     * 时间一到才在<b>脚下当时所在处</b>落阵，然后连人带阵一起定住。
+     */
+    public static final int WALK_TICKS = 70;
+
+    /**
+     * <b>锁链飞行时长</b>（tick）：法阵就位后，锁链从行星齿轮的中心
+     * 沿柔性曲线飞向玩家所需的时间。必须与渲染端
+     * {@code MagicCircleRenderer.CHAIN_FLY_TICKS} 保持一致。
+     */
+    public static final int CHAIN_FLY_TICKS = 12;
+
+    /**
+     * <b>锁链缠绕时长</b>（tick）：链尖抵达玩家后，沿身体螺旋缠绕一圈半所需的时间。
+     * 必须与渲染端 {@code MagicCircleRenderer.CHAIN_WRAP_TICKS} 保持一致。
+     */
+    public static final int CHAIN_WRAP_TICKS = 10;
+
+    /**
+     * <b>锁死移动的时刻</b>：{@code WALK_TICKS + CHAIN_FLY_TICKS + CHAIN_WRAP_TICKS} = 92。
+     * <p>
+     * ⭐ 移动锁定的判定依据（见 {@link #isChained}）—— 不是"落阵就锁"，
+     * 而是"<b>锁链在身上缠好之后</b>才锁"，视觉与逻辑严格对齐。
+     */
+    public static final int CHAIN_LOCK_TICKS = WALK_TICKS + CHAIN_FLY_TICKS + CHAIN_WRAP_TICKS;
+
+    /** 能量罩从法阵边缘升起所需的时间（tick）。必须与渲染端 {@code DOME_RISE_TICKS} 一致。 */
+    public static final int DOME_RISE_TICKS = 20;
+
+    /** 能量罩开始升起的时刻 = 锁链缠好之后（演出顺序：落阵 → 锁链 → 能量罩）。 */
+    public static final int DOME_START_TICKS = CHAIN_LOCK_TICKS;
+
+    /** 能量罩完全升起的时刻。 */
+    public static final int DOME_UP_TICKS = DOME_START_TICKS + DOME_RISE_TICKS;
+
+    /**
+     * <b>能量罩半径（格）</b>—— 渲染端 {@code MagicCircleRenderer} 用它决定罩体大小。
+     */
+    public static final double DOME_RADIUS = 6.5D;
+
+    /**
+     * <b>第三阶段「登神长阶」</b>开始时刻 = 能量罩升起完成之后。
+     * <p>
+     * 从这个时刻起宝珠进入狂暴状态：物品抖动、引力波极快（切到 surge 贴图，
+     * {@code frametime} 从 4 降到 1）、裂隙更大、闪电更突出。
+     */
+    public static final int ASCEND_TICKS = DOME_UP_TICKS;
+
     public AscensionOrbItem(Properties properties) {
         super(properties);
     }
@@ -136,14 +189,34 @@ public class AscensionOrbItem extends Item {
     }
 
     /**
-     * 蓄力期间每 tick 调用一次，客户端与服务端都会调。
-     * <p>
-     * 后续的蓄力音效、粒子、阶段提示（"蓄力 1/3"之类）都应该接在这里；
-     * 真正会改变世界的结果请留给 {@link #releaseUsing}，避免中途反复触发。
+     * 蓄力期间每 tick 调用一次，<b>客户端与服务端都会调</b>。
+     *
+     * <h2>两个阶段的分界就在这里</h2>
+     * <ul>
+     *     <li>{@code elapsed < }{@link #WALK_TICKS}：<b>第一阶段</b>，什么都不做 ——
+     *         玩家可以随便走随便跳（移动锁定见 {@code MixinChargeMovementLock}，
+     *         它的判定条件是 {@link #isAnchored} 而不是 {@link #isCharging}，
+     *         所以这个阶段完全不受限制）。</li>
+     *     <li>跨过 {@link #WALK_TICKS}：<b>第二阶段</b>。在这里把锚点钉在玩家<b>此刻的脚下</b>,
+     *         后续的齿轮魔法阵与锁链都由客户端读这个锚点来渲染
+     *         （见 {@code client.MagicCircleRenderer}）。</li>
+     * </ul>
+     *
+     * <p>锚点用 {@code beginIfAbsent} ⇒ 只记第一次，之后玩家再动阵法也不会跟着跑 ——
+     * 否则"被锁链拴住"就只是装饰了。
      */
     @Override
     public void onUseTick(Level level, LivingEntity entity, ItemStack stack, int remainingUseDuration) {
-        // 目前"蓄力中"的全部表现都由姿态动画承担，这里先留空。
+        if (getChargeTicks(entity) < WALK_TICKS) {
+            // 第一阶段：还没到落阵的时候。顺手保证状态干净
+            // （正常流程里锚点本就为空，这里只是防御"上一轮没收尾"）。
+            ChargeAnchor.clear(entity);
+            return;
+        }
+
+        // 第二阶段：阵法出现的这一刻，把锚点定在脚下 —— 且只记这一次。
+        // （返回值不再使用：法阵完全由客户端渲染，服务端只需把锚点钉住。）
+        ChargeAnchor.beginIfAbsent(entity);
     }
 
     /**
@@ -156,8 +229,12 @@ public class AscensionOrbItem extends Item {
      */
     @Override
     public void releaseUsing(ItemStack stack, Level level, LivingEntity entity, int timeLeft) {
+        // 收阵：清掉锚点，下次再蓄力"落阵"时会重新钉在脚下。
+        ChargeAnchor.clear(entity);
+
         // TODO 释放效果（冲击波 / 位移 / 召唤 / 消耗……）接在这里。
-        //      蓄力时长就是 USE_DURATION - timeLeft，可以据此分档。
+        //      蓄力时长就是 USE_DURATION - timeLeft，可以据此分档；
+        //      是否走到了第二阶段可以用 timeLeft <= USE_DURATION - WALK_TICKS 判断。
     }
 
     // ================================================================ 蓄力：状态查询
@@ -212,6 +289,146 @@ public class AscensionOrbItem extends Item {
         }
         float elapsed = getChargeTicks(entity) + partialTick;
         return Mth.clamp(elapsed / FULL_CHARGE_TICKS, 0.0F, 1.0F);
+    }
+
+    /**
+     * <b>是否已经进入第二阶段</b>（脚下落阵、被锁链拴住、不能再移动跳跃）。
+     * <p>
+     * 这是比 {@link #isCharging} 更严格的条件，也是移动锁定的判定依据：
+     * 蓄力前 {@link #WALK_TICKS} tick 里玩家可以自由走动（"第一段蓄力"），
+     * 之后才被定住。
+     * <p>
+     * 注意这个判断只依赖原版同步的"正在使用物品"状态与已用时长，
+     * 因此<b>客户端看到的其他玩家</b>也能得到一致结果（他们的锁链表现是服务端粒子，天然可见）。
+     */
+    public static boolean isAnchored(@Nullable LivingEntity entity) {
+        return getChargeTicks(entity) >= WALK_TICKS;
+    }
+
+    /**
+     * <b>锁链是否已经缠在身上</b>（蓄力超过 {@link #CHAIN_LOCK_TICKS}）。
+     * <p>
+     * ⭐ 这是移动锁定的<b>唯一判定</b>：落阵只代表"演出开始"，
+     * 锁链飞过来（{@link #CHAIN_FLY_TICKS}）并在身上缠好（{@link #CHAIN_WRAP_TICKS}）
+     * 之后，玩家才真正被锁住 —— 视觉进度和逻辑判定严格同步，
+     * 不会出现"阵法刚落地人就被定住、锁链还在半空飞"的违和感。
+     */
+    public static boolean isChained(@Nullable LivingEntity entity) {
+        return getChargeTicks(entity) >= CHAIN_LOCK_TICKS;
+    }
+
+    /**
+     * <b>能量罩是否已经完全升起</b>（蓄力超过 {@link #DOME_UP_TICKS}）。
+     * <p>
+     * 与渲染上的升起动画严格同步；也是"第三人称自动切回第一人称"的触发时机
+     * （见 {@code MagicCircleRenderer}）。
+     */
+    public static boolean isDomeUp(@Nullable LivingEntity entity) {
+        return getChargeTicks(entity) >= DOME_UP_TICKS;
+    }
+
+    /**
+     * <b>是否已进入第三阶段「登神长阶」</b>（蓄力超过 {@link #ASCEND_TICKS}）。
+     * <p>
+     * 供渲染层使用：宝珠切到 surge 贴图（引力波极快、裂隙更大、闪电更突出）、
+     * 物品本身开始抖动。也是 {@code stairway_to_godhood:surge} 这个模型谓词的取值来源。
+     */
+    public static boolean isAscending(@Nullable LivingEntity entity) {
+        return getChargeTicks(entity) >= ASCEND_TICKS;
+    }
+
+    /** 登神阶段内的"狂暴进度" 0~1（用于抖动幅度随充能继续增强）。 */
+    public static float getAscendRage(@Nullable LivingEntity entity, float partialTick) {
+        if (!isCharging(entity)) {
+            return 0.0F;
+        }
+        float elapsed = getChargeTicks(entity) + partialTick - ASCEND_TICKS;
+        return Mth.clamp(elapsed / 60.0F, 0.0F, 1.0F);   // 之后 3 秒内线性涨到 1
+    }
+
+    /** 「登神聚焦」淡入时长（tick）—— 进入第三阶段后，屏幕遮罩与视角扩大在这个时间里推到满。 */
+    public static final int ASCEND_FOCUS_TICKS = 22;
+
+    /**
+     * <b>登神聚焦进度</b> 0~1：驱动"屏幕界面消失、视角扩大、锥形紫黑遮罩收拢"三件事。
+     * <p>
+     * 比 {@link #getAscendRage} 快（30 tick = 1.5 秒推满）—— 特写要"一下子上来"才有冲击力，
+     * 而抖动是持续渐强的。
+     */
+    public static float getAscendFocus(@Nullable LivingEntity entity, float partialTick) {
+        if (!isCharging(entity)) {
+            return 0.0F;
+        }
+        float elapsed = getChargeTicks(entity) + partialTick - ASCEND_TICKS;
+        return Mth.clamp(elapsed / ASCEND_FOCUS_TICKS, 0.0F, 1.0F);
+    }
+
+    // ---------------------------------------------------------------- 登神遮罩演化
+    //
+    // 三个进度首尾相接，把屏幕一路"吃"掉：
+    //   focus  30t  锥形遮罩收拢（边缘先暗，中间还亮）
+    //   purple 60t  紫色逐渐铺满（连中心一起变紫）
+    //   black  60t  黑色从中心向外蔓延，最终全黑
+    //
+    /** 紫色铺满的起始（tick，相对蓄力开始）—— 锥形遮罩收拢完成之后。 */
+    public static final int ASCEND_PURPLE_START = ASCEND_TICKS + ASCEND_FOCUS_TICKS;
+    /** 紫色铺满所需时间（tick）。 */
+    public static final int ASCEND_PURPLE_TICKS = 48;
+    /** 黑幕扩散的起始（tick）—— 紫色铺满之后。 */
+    public static final int ASCEND_BLACK_START = ASCEND_PURPLE_START + ASCEND_PURPLE_TICKS;
+    /**
+     * 黑幕扩散所需时间（tick）。
+     * <p>
+     * 160 tick = 8 秒 —— 用户反馈 100 tick 时"变黑太快"。
+     * 黑幕是最"重"的一层，进一步拉长后是"慢慢暗下去、慢慢沉入纯黑"，
+     * 中间那段深紫黑（能量残留）才有足够时间被看见。
+     */
+    public static final int ASCEND_BLACK_TICKS = 160;
+
+    /** 紫色铺满进度 0~1。 */
+    public static float getAscendPurple(@Nullable LivingEntity entity, float partialTick) {
+        if (!isCharging(entity)) {
+            return 0.0F;
+        }
+        float elapsed = getChargeTicks(entity) + partialTick - ASCEND_PURPLE_START;
+        return Mth.clamp(elapsed / ASCEND_PURPLE_TICKS, 0.0F, 1.0F);
+    }
+
+    /**
+     * <b>黑幕完全落定</b>的时刻（tick，相对蓄力开始）—— 屏幕已彻底变黑。
+     * <p>
+     * 这是"登神演出收尾"的分界：过了这一刻，蓄力目标已经达成，
+     * 松手时不再收起法阵/罩子，而是把它们**冻结在原地**（见 {@code ChargeFxState} 的冻结态）。
+     */
+    public static final int ASCEND_BLACK_DONE_TICKS = ASCEND_BLACK_START + ASCEND_BLACK_TICKS;
+
+    /**
+     * 是否已经黑屏完成（蓄力超过 {@link #ASCEND_BLACK_DONE_TICKS}）。
+     * 供"松手后是否保留法阵"的判定使用。
+     */
+    public static boolean isBlackDone(@Nullable LivingEntity entity) {
+        return getChargeTicks(entity) >= ASCEND_BLACK_DONE_TICKS;
+    }
+
+    /** 黑幕从中心扩散的进度 0~1（1 = 全屏已黑）。 */
+    public static float getAscendBlack(@Nullable LivingEntity entity, float partialTick) {
+        if (!isCharging(entity)) {
+            return 0.0F;
+        }
+        float elapsed = getChargeTicks(entity) + partialTick - ASCEND_BLACK_START;
+        return Mth.clamp(elapsed / ASCEND_BLACK_TICKS, 0.0F, 1.0F);
+    }
+
+    /**
+     * 能量罩的升起进度：<b>0</b> = 刚要从地面冒出来，<b>1</b> = 完全升起。
+     * 渲染端用它驱动罩体的高度与透明度。
+     */
+    public static float getDomeRise(@Nullable LivingEntity entity, float partialTick) {
+        if (!isCharging(entity)) {
+            return 0.0F;
+        }
+        float elapsed = getChargeTicks(entity) + partialTick - DOME_START_TICKS;
+        return Mth.clamp(elapsed / DOME_RISE_TICKS, 0.0F, 1.0F);
     }
 
     // ================================================================ 外观

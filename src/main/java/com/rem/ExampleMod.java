@@ -50,6 +50,9 @@ public class ExampleMod {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         ModItems.register(modBus);         // 「登神长阶」宝珠
         ModCreativeTabs.register(modBus);  // 创造模式物品栏
+
+        // 配置文件：config/stairway_to_godhood-client.toml（占位界面的语句与参数）
+        com.rem.stairwaytogodhood.client.NoContentConfig.register();
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {

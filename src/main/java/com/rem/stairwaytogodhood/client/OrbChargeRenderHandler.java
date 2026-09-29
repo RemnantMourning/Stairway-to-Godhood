@@ -99,6 +99,16 @@ public final class OrbChargeRenderHandler {
         poseStack.pushPose();
         // 相机空间：+x 右、+y 上、-z 前。x/y 归零 = 屏幕正中 = 准星。
         poseStack.translate(0.0F, 0.0F, -DISTANCE);
+        // 第三阶段「登神长阶」：物品开始抖动 —— 两个不同频率的正弦相乘
+        // （乘积形式让振幅时大时小，像不受控的震颤，而不是规则的来回摆）。
+        float rage = AscensionOrbItem.getAscendRage(player, event.getPartialTick());
+        if (rage > 0.0F) {
+            double nt = player.tickCount + event.getPartialTick();
+            double amp = 0.010D + 0.030D * rage;
+            double jx = Math.sin(nt * 1.70D) * Math.sin(nt * 0.63D) * amp;
+            double jy = Math.sin(nt * 2.10D + 1.3D) * Math.sin(nt * 0.87D) * amp;
+            poseStack.translate(jx, jy, 0.0D);
+        }
         poseStack.scale(scale, scale, scale);
         // GUI 上下文的物品是"正面对着你"的（物品栏图标就是它），不用再转任何角度。
         minecraft.getItemRenderer().renderStatic(stack, ItemDisplayContext.GUI,

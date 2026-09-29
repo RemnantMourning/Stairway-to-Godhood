@@ -70,10 +70,20 @@ public abstract class MixinAscensionOrbArmPose {
 
         // 用 lerp 从"原版算出来的当前角度"过渡到目标角度：
         // t=0 时完全保持原样，t=1 时完全举起，中间是连续的 —— 不用自己写过渡曲线。
-        model.rightArm.xRot = Mth.lerp(t, model.rightArm.xRot, targetX);
-        model.leftArm.xRot = Mth.lerp(t, model.leftArm.xRot, targetX);
-        model.rightArm.yRot = Mth.lerp(t, model.rightArm.yRot, -ARM_INWARD);
-        model.leftArm.yRot = Mth.lerp(t, model.leftArm.yRot, ARM_INWARD);
+        // 第三阶段「登神长阶」：手臂高频小幅颤抖 —— 物品挂在手臂末梢，
+        // 手臂一抖，捧着的宝珠就跟着抖（第三人称 / 别人看你时也看得到）。
+        float rage = AscensionOrbItem.getAscendRage(entity, 0.0F);
+        float tremor = 0.0F;
+        if (rage > 0.0F) {
+            double nt = entity.tickCount;
+            tremor = (float) ((0.012D + 0.028D * rage)
+                    * Math.sin(nt * 1.9D) * Math.sin(nt * 0.71D));
+        }
+
+        model.rightArm.xRot = Mth.lerp(t, model.rightArm.xRot, targetX + tremor);
+        model.leftArm.xRot = Mth.lerp(t, model.leftArm.xRot, targetX - tremor);
+        model.rightArm.yRot = Mth.lerp(t, model.rightArm.yRot, -ARM_INWARD + tremor * 0.6F);
+        model.leftArm.yRot = Mth.lerp(t, model.leftArm.yRot, ARM_INWARD - tremor * 0.6F);
         model.rightArm.zRot = Mth.lerp(t, model.rightArm.zRot, 0.0F);
         model.leftArm.zRot = Mth.lerp(t, model.leftArm.zRot, 0.0F);
     }
